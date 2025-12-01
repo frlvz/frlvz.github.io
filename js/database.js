@@ -5,7 +5,7 @@ class Database {
         this.dbVersion = 1;
     }
 
-    async init() {
+    init() {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.dbVersion);
 
@@ -41,7 +41,7 @@ class Database {
         });
     }
 
-    async saveGame(gameData) {
+    saveGame(gameData) {
         const transaction = this.db.transaction(['games', 'moves'], 'readwrite');
         const gamesStore = transaction.objectStore('games');
         const movesStore = transaction.objectStore('moves');
@@ -79,25 +79,36 @@ class Database {
         });
     }
 
-    async getAllGames() {
+    getAllGames() {
         const transaction = this.db.transaction(['games'], 'readonly');
         const store = transaction.objectStore('games');
         const index = store.index('date');
 
         return new Promise((resolve, reject) => {
-            const request = index.getAll();
-            request.onsuccess = () => resolve(request.result);
+            const request = index.openCursor(null, 'prev'); // сортируем от новых к старым
+            const games = [];
+
+            request.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    games.push(cursor.value);
+                    cursor.continue();
+                } else {
+                    resolve(games);
+                }
+            };
+
             request.onerror = () => reject(request.error);
         });
     }
 
-    async getGameMoves(gameId) {
+    getGameMoves(gameId) {
         const transaction = this.db.transaction(['moves'], 'readonly');
         const store = transaction.objectStore('moves');
         const index = store.index('gameId');
 
         return new Promise((resolve, reject) => {
-            const request = index.getAll(gameId);
+            const request = index.getAll(Number(gameId));
             request.onsuccess = () => {
                 const moves = request.result.sort((a, b) => a.moveNumber - b.moveNumber);
                 resolve(moves);
@@ -106,7 +117,7 @@ class Database {
         });
     }
 
-    async getGameById(gameId) {
+    getGameById(gameId) {
         const transaction = this.db.transaction(['games'], 'readonly');
         const store = transaction.objectStore('games');
 
